@@ -3,9 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:foody_zidio/Content/bottom_nav.dart';
-import 'package:foody_zidio/Content/splash_screen.dart';
-import 'package:foody_zidio/service/app_constraint.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:foody_zidio/services/app_constraint.dart';
 import 'pages/login.dart';
 
 void main() async {
@@ -22,7 +20,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: SplashScreen(),
+      home: LogIn(),
     );
   }
 }

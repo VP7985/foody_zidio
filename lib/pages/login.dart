@@ -1,11 +1,11 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:foody_zidio/Content/bottom_nav.dart'; // Import your regular user page
+import 'package:foody_zidio/Content/bottom_nav.dart';
+// Import your regular user page
 import 'package:foody_zidio/pages/forgetpassword.dart'; // Import your forgot password page
 import 'package:foody_zidio/pages/signup.dart'; // Import your signup page
 import 'package:foody_zidio/widget/widget_support.dart'; // Import your widget support
-import 'package:shared_preferences/shared_preferences.dart'; // Import shared_preferences package
+ // Import shared_preferences package
 
 class LogIn extends StatefulWidget {
   const LogIn({super.key});

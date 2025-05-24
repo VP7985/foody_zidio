@@ -1,0 +1,2 @@
+C:/Users/Parth Vadodariya/foody_zidio/android/app/.cxx/RelWithDebInfo/594t2a6w/arm64-v8a/CMakeFiles/edit_cache.dir
+C:/Users/Parth Vadodariya/foody_zidio/android/app/.cxx/RelWithDebInfo/594t2a6w/arm64-v8a/CMakeFiles/rebuild_cache.dir

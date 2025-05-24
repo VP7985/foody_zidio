@@ -1,13 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:foody_zidio/Content/bottom_nav.dart';
-import 'package:foody_zidio/Database/database.dart';
-import 'package:foody_zidio/main.dart';
-import 'package:foody_zidio/pages/forgetpassword.dart';
 import 'package:foody_zidio/pages/login.dart';
-import 'package:foody_zidio/service/shared_pref.dart';
 import 'package:foody_zidio/widget/widget_support.dart';
-import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
 
@@ -28,18 +22,7 @@ class _SignUpState extends State<SignUp> {
   TextEditingController useremailController = TextEditingController();
   TextEditingController userpasswordController = TextEditingController();
 
-  final ImagePicker _picker = ImagePicker();
 
-  Future<void> _pickImage() async {
-    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
-    setState(() {
-      if (pickedFile != null) {
-        _image = File(pickedFile.path);
-      } else {
-        print('No image selected.');
-      }
-    });
-  }
 
   Future<String> _uploadProfileImage() async {
     if (_image == null) return "";
@@ -62,23 +45,8 @@ class _SignUpState extends State<SignUp> {
         ),
       ));
 
-      String profileUrl = await _uploadProfileImage();
 
-      Map<String, dynamic> addUserInfo = {
-        "Name": usernameController.text,
-        "Email": useremailController.text,
-        "Wallet": "0",
-        "ProfileImageUrl": profileUrl,
-      };
-
-      await DatabaseMethods().addUserDetailWithAutoIncrement(addUserInfo);
-      await SharedPreferenceHelper().saveUserName(usernameController.text);
-      await SharedPreferenceHelper().saveUserEmail(useremailController.text);
-      await SharedPreferenceHelper().saveUserWallet('0');
-      await SharedPreferenceHelper().saveUserProfile(profileUrl);
-      await SharedPreferenceHelper().saveUserId(addUserInfo['Id']);
-
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => LogIn()));
+    Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => LogIn()));
     } on FirebaseAuthException catch (e) {
       if (e.code == 'weak-password') {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
