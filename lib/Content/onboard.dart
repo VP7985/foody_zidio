@@ -1,136 +1,141 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:foody_zidio/Admin/admin_login.dart';
+import 'package:foody_zidio/Content/bottom_nav.dart';
 import 'package:foody_zidio/pages/login.dart';
-import 'package:foody_zidio/pages/signup.dart';
-import 'package:foody_zidio/widget/content_model.dart';
-import 'package:foody_zidio/widget/widget_support.dart';
+import 'package:foody_zidio/services/local_cache.dart';
 
 class Onboard extends StatefulWidget {
-  const Onboard({super.key});
+  final LocalCacheService cacheService;
+
+  const Onboard({Key? key, required this.cacheService}) : super(key: key);
 
   @override
   State<Onboard> createState() => _OnboardState();
 }
 
 class _OnboardState extends State<Onboard> {
-  int currentIndex = 0;
-  late PageController _controller;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  bool _isLoading = true;
 
   @override
   void initState() {
-    _controller = PageController(initialPage: 0);
     super.initState();
+    _checkAuthState();
   }
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
+  Future<void> _checkAuthState() async {
+    User? user = _auth.currentUser;
+    if (user != null) {
+      Map<String, String>? userData = await widget.cacheService.getUserData(user.uid);
+      if (userData != null && widget.cacheService.isCacheValid(userData)) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const BottomNav()),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const LogIn()),
+        );
+      }
+    } else {
+      String? adminId = await widget.cacheService.getUserId('admin');
+      if (adminId != null) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const AdminLogin()),
+        );
+      }
+    }
+    setState(() {
+      _isLoading = false;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[900],
-      body: Column(
-        children: [
-          Expanded(
-            child: PageView.builder(
-              controller: _controller,
-              itemCount: contents.length,
-              onPageChanged: (int index) {
-                setState(() {
-                  currentIndex = index;
-                });
-              },
-              itemBuilder: (_, i) {
-                return Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 20.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: Image.asset(
-                          contents[i].image,
-                          height: MediaQuery.of(context).size.height * 0.5,
-                          width: MediaQuery.of(context).size.width,
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                      SizedBox(height: 40.0),
-                      Text(
-                        contents[i].title,
-                        style: AppWidget.HeadlineTextFeildStyle(),
-                        textAlign: TextAlign.center,
-                      ),
-                      SizedBox(height: 20.0),
-                      Text(
-                        contents[i].description,
-                        style: AppWidget.LightTextFeildStyle(),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: Colors.grey,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    return WillPopScope(
+      onWillPop: () async => false, // Prevent back button from exiting app
+      child: Scaffold(
+        backgroundColor: Colors.grey[900],
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Image.asset(
+                "images/logo.png",
+                width: MediaQuery.of(context).size.width / 2,
+                fit: BoxFit.cover,
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                "Welcome to Foody Zidio",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 40),
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const LogIn()),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      vertical: 12.0, horizontal: 20.0),
+                  decoration: BoxDecoration(
+                    color: Colors.grey,
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                );
-              },
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(
-                contents.length,
-                (index) => buildDot(index),
-              ),
-            ),
-          ),
-          GestureDetector(
-            onTap: () {
-              if (currentIndex == contents.length - 1) {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => LogIn()),
-                );
-              } else {
-                _controller.nextPage(
-                  duration: Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                );
-              }
-            },
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.grey,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              height: 60,
-              margin: EdgeInsets.all(40),
-              width: double.infinity,
-              child: Center(
-                child: Text(
-                  currentIndex == contents.length - 1 ? "Start" : "Next",
-                  style: TextStyle(
-                    color: Colors.black54,
-                    fontSize: 20.0,
-                    fontWeight: FontWeight.bold,
+                  child: const Text(
+                    "User Login",
+                    style: TextStyle(
+                      color: Colors.black54,
+                      fontSize: 18.0,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
-            ),
+              const SizedBox(height: 20),
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const AdminLogin()),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      vertical: 12.0, horizontal: 20.0),
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text(
+                    "Admin Login",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18.0,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
-  }
-
-  Container buildDot(int index) {
-    return Container(
-      height: 10.0,
-      width: currentIndex == index ? 10 : 20,
-      margin: EdgeInsets.only(right: 8),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(5),
-        color: Colors.grey,
+        ),
       ),
     );
   }
