@@ -1,55 +1,32 @@
-import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
-import 'package:foody_zidio/Content/bottom_nav.dart';
+import 'package:foody_zidio/Content/onboard.dart';
 import 'package:foody_zidio/services/app_constraint.dart';
-import 'pages/login.dart';
+import 'package:foody_zidio/services/local_cache.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  Stripe.publishableKey = publishableKey;
   await Firebase.initializeApp();
-  runApp(const MyApp());
+  Stripe.publishableKey = publishableKey;
+  final LocalCacheService cacheService = LocalCacheService();
+  await cacheService.init();
+  runApp(MyApp(cacheService: cacheService));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final LocalCacheService cacheService;
+
+  const MyApp({Key? key, required this.cacheService}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: LogIn(),
+      title: 'Foody Zidio',
+      theme: ThemeData(
+        primarySwatch: Colors.grey,
+      ),
+      home: Onboard(cacheService: cacheService),
     );
-  }
-}
-
-class Checkuser extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder(
-      future: _checkUserStatus(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        } else {
-          bool isLoggedIn = snapshot.data as bool;
-
-          if (isLoggedIn) {
-            return BottomNav();
-          } else {
-            return const LogIn();
-          }
-        }
-      },
-    );
-  }
-
-  Future<bool> _checkUserStatus() async {
-    User? user = FirebaseAuth.instance.currentUser;
-    return user != null;
   }
 }
