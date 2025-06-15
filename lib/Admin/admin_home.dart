@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:foody_zidio/Admin/add_food.dart';
-import 'package:foody_zidio/widget/widget_support.dart';
+import 'package:foody_zidio/services/widget_support.dart';
 
 class HomeAdmin extends StatefulWidget {
   const HomeAdmin({super.key});

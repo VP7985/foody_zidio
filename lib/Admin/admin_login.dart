@@ -197,7 +197,6 @@ class _AdminLoginState extends State<AdminLogin> {
           email: '',
           wallet: '0',
           profile: '',
-          lastLoginTimestamp: DateTime.now().toIso8601String(),
         );
         Navigator.pushReplacement(
           context,
