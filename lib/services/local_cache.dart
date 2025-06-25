@@ -4,6 +4,7 @@ import 'dart:convert';
 class LocalCacheService {
   static SharedPreferences? _prefs;
   static const String _userDataKeyPrefix = 'user_data_';
+  static const String _cacheCreationKeyPrefix = 'cache_creation_';
   static const int _cacheValidityDays = 7;
 
   // Initialize SharedPreferences
@@ -18,7 +19,6 @@ class LocalCacheService {
     String? email,
     String? wallet,
     String? profile,
-    String? lastLoginTimestamp,
   }) async {
     await init();
     final userData = {
@@ -26,16 +26,14 @@ class LocalCacheService {
       'name': name ?? '',
       'email': email ?? '',
       'wallet': wallet ?? '0',
-      'profile': profile ?? '',
-      'lastLoginTimestamp': lastLoginTimestamp ?? DateTime.now().toIso8601String(),
+      'Profile': profile ?? '',
     };
     try {
-      await _prefs!.setString(
-        '$_userDataKeyPrefix$id',
-        jsonEncode(userData),
-      );
+      await _prefs!.setString('$_userDataKeyPrefix$id', jsonEncode(userData));
+      await _prefs!.setString('$_cacheCreationKeyPrefix$id', DateTime.now().toIso8601String());
     } catch (e) {
       print('Error saving user data to cache: $e');
+      rethrow;
     }
   }
 
@@ -66,7 +64,7 @@ class LocalCacheService {
   // Retrieve user profile image URL
   Future<String?> getUserProfile(String id) async {
     final userData = await getUserData(id);
-    return userData?['profile'];
+    return userData?['Profile'];
   }
 
   // Retrieve full user data
@@ -77,16 +75,16 @@ class LocalCacheService {
       if (userDataString != null) {
         final userData = jsonDecode(userDataString) as Map<String, dynamic>;
         return {
-          'id': userData['id'] as String,
-          'name': userData['name'] as String,
-          'email': userData['email'] as String,
-          'wallet': userData['wallet'] as String,
-          'profile': userData['profile'] as String,
-          'lastLoginTimestamp': userData['lastLoginTimestamp'] as String,
+          'id': userData['id'].toString(),
+          'name': userData['name'].toString(),
+          'email': userData['email'].toString(),
+          'wallet': userData['wallet'].toString(),
+          'Profile': userData['Profile'].toString(),
         };
       }
     } catch (e) {
       print('Error retrieving user data from cache: $e');
+      rethrow;
     }
     return null;
   }
@@ -98,7 +96,6 @@ class LocalCacheService {
     String? email,
     String? wallet,
     String? profile,
-    String? lastLoginTimestamp,
   }) async {
     await init();
     final currentData = await getUserData(id);
@@ -107,17 +104,13 @@ class LocalCacheService {
       'name': name ?? currentData?['name'] ?? '',
       'email': email ?? currentData?['email'] ?? '',
       'wallet': wallet ?? currentData?['wallet'] ?? '0',
-      'profile': profile ?? currentData?['profile'] ?? '',
-      'lastLoginTimestamp':
-          lastLoginTimestamp ?? currentData?['lastLoginTimestamp'] ?? DateTime.now().toIso8601String(),
+      'Profile': profile ?? currentData?['Profile'] ?? '',
     };
     try {
-      await _prefs!.setString(
-        '$_userDataKeyPrefix$id',
-        jsonEncode(updatedData),
-      );
+      await _prefs!.setString('$_userDataKeyPrefix$id', jsonEncode(updatedData));
     } catch (e) {
       print('Error updating user data in cache: $e');
+      rethrow;
     }
   }
 
@@ -126,25 +119,25 @@ class LocalCacheService {
     await init();
     try {
       await _prefs!.remove('$_userDataKeyPrefix$id');
+      await _prefs!.remove('$_cacheCreationKeyPrefix$id');
     } catch (e) {
       print('Error clearing user data from cache: $e');
+      rethrow;
     }
   }
 
-  // Check if cached data is valid (within 7 days)
+  // Check if cached data is valid (within 7 days of creation)
   bool isCacheValid(Map<String, String>? cachedData) {
     if (cachedData == null) return false;
-    final lastLoginTimestamp = cachedData['lastLoginTimestamp'];
-    if (lastLoginTimestamp == null || lastLoginTimestamp.isEmpty) {
-      return false;
-    }
     try {
-      final lastLogin = DateTime.parse(lastLoginTimestamp);
+      final creationTime = _prefs!.getString('$_cacheCreationKeyPrefix${cachedData['id']}');
+      if (creationTime == null || creationTime.isEmpty) return false;
+      final creationDate = DateTime.parse(creationTime);
       final now = DateTime.now();
-      final difference = now.difference(lastLogin).inDays;
+      final difference = now.difference(creationDate).inDays;
       return difference <= _cacheValidityDays;
     } catch (e) {
-      print('Error parsing last login timestamp: $e');
+      print('Error checking cache validity: $e');
       return false;
     }
   }
