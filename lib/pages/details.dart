@@ -1,9 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:foody_zidio/services/database.dart';
-import 'package:foody_zidio/services/local_cache.dart';
-import 'package:foody_zidio/widget/widget_support.dart';
+import 'package:foody_zidio/services/widget_support.dart';
 
 class Details extends StatefulWidget {
   final String name, image, detail, price;
@@ -23,62 +21,43 @@ class Details extends StatefulWidget {
 class _DetailsState extends State<Details> {
   int quantity = 1;
   final DatabaseMethods _databaseMethods = DatabaseMethods();
-  final LocalCacheService _cacheService = LocalCacheService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   Future<void> addToCart() async {
     User? user = _auth.currentUser;
-    if (user != null) {
-      String total = (int.parse(widget.price) * quantity).toString();
-      Map<String, dynamic> cartItem = {
-        "Name": widget.name,
-        "Image": widget.image,
-        "Quantity": quantity,
-        "Total": total,
-        "Timestamp": Timestamp.now(),
-      };
-      try {
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .collection('payment_history')
-            .add(cartItem);
-        Map<String, String>? cachedData =
-            await _cacheService.getUserData(user.uid);
-        if (cachedData != null) {
-          int currentWallet = int.parse(cachedData['wallet'] ?? '0');
-          int newWallet = currentWallet - int.parse(total);
-          if (newWallet >= 0) {
-            await _databaseMethods.updateUserWallet(user.uid, newWallet.toString());
-            await _cacheService.updateUserData(
-                id: user.uid, wallet: newWallet.toString());
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              backgroundColor: Colors.greenAccent,
-              content: Text(
-                "Item added to cart!",
-                style: TextStyle(fontSize: 20.0),
-              ),
-            ));
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              backgroundColor: Colors.redAccent,
-              content: Text(
-                "Insufficient wallet balance!",
-                style: TextStyle(fontSize: 20.0),
-              ),
-            ));
-          }
-        }
-      } catch (e) {
-        print('Error adding to cart: $e');
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
           backgroundColor: Colors.redAccent,
-          content: Text(
-            "Failed to add item: $e",
-            style: const TextStyle(fontSize: 20.0),
-          ),
-        ));
-      }
+          content: Text("Please log in to add items to cart!", style: TextStyle(fontSize: 20.0)),
+        ),
+      );
+      return;
+    }
+
+    String total = (int.parse(widget.price) * quantity).toString();
+    Map<String, dynamic> cartItem = {
+      "Name": widget.name,
+      "Image": widget.image,
+      "Quantity": quantity.toString(),
+      "Total": total,
+    };
+
+    try {
+      await _databaseMethods.addFoodToCart(user.uid, cartItem);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Colors.greenAccent,
+          content: Text("Item added to cart!", style: TextStyle(fontSize: 20.0)),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.redAccent,
+          content: Text("Failed to add item: $e", style: const TextStyle(fontSize: 20.0)),
+        ),
+      );
     }
   }
 
@@ -88,13 +67,6 @@ class _DetailsState extends State<Details> {
       backgroundColor: Colors.grey[900],
       appBar: AppBar(
         backgroundColor: Colors.black,
-        leading: IconButton(
-          onPressed: () {
-            Navigator.pop(context);
-          },
-          icon: const Icon(Icons.arrow_back),
-          color: Colors.white,
-        ),
         title: Text(widget.name, style: AppWidget.semiBoldWhiteTextFeildStyle()),
         centerTitle: true,
       ),
@@ -111,6 +83,7 @@ class _DetailsState extends State<Details> {
                   height: 200,
                   width: double.infinity,
                   fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.error, size: 100, color: Colors.white),
                 ),
               ),
               const SizedBox(height: 20.0),
