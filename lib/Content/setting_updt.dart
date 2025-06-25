@@ -1,8 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:foody_zidio/pages/login.dart';
-import 'package:foody_zidio/services/user_async_activity.dart';
-import 'package:foody_zidio/services/widget_support.dart';
+import 'package:foody_zidio/Content/onboard.dart';
+import 'package:foody_zidio/services/database.dart';
+import 'package:foody_zidio/services/local_cache.dart';
 import 'package:foody_zidio/services/widget_support.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -14,13 +14,11 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final UserSyncService _userSyncService = UserSyncService();
+  final DatabaseMethods _databaseMethods = DatabaseMethods();
+  final LocalCacheService _cacheService = LocalCacheService();
   TextEditingController nameController = TextEditingController();
   TextEditingController emailController = TextEditingController();
-  TextEditingController walletController = TextEditingController();
-  TextEditingController profileController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-  bool isLoading = true;
 
   @override
   void initState() {
@@ -32,15 +30,27 @@ class _SettingsPageState extends State<SettingsPage> {
     User? currentUser = _auth.currentUser;
     if (currentUser != null) {
       try {
-        Map<String, dynamic>? userData = await _userSyncService.getUserData(currentUser.uid);
-        if (userData != null) {
+        Map<String, String>? cachedData = await _cacheService.getUserData(currentUser.uid);
+        if (cachedData != null && _cacheService.isCacheValid(cachedData)) {
           setState(() {
-            nameController.text = userData['Name'] ?? '';
-            emailController.text = userData['Email'] ?? '';
-            walletController.text = userData['Wallet'] ?? '0';
-            profileController.text = userData['Profile'] ?? '';
-            isLoading = false;
+            nameController.text = cachedData['name'] ?? '';
+            emailController.text = cachedData['email'] ?? '';
           });
+        } else {
+          Map<String, dynamic>? userData = await _databaseMethods.getUserDetails(currentUser.uid);
+          if (userData != null) {
+            await _cacheService.saveUserData(
+              id: currentUser.uid,
+              name: userData['Name'] ?? '',
+              email: userData['Email'] ?? '',
+              wallet: userData['Wallet'] ?? '0',
+              profile: userData['Profile'] ?? '',
+            );
+            setState(() {
+              nameController.text = userData['Name'] ?? '';
+              emailController.text = cachedData?['email'] ?? '';
+            });
+          }
         }
       } catch (e) {
         if (mounted) {
@@ -51,9 +61,6 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           );
         }
-        setState(() {
-          isLoading = false;
-        });
       }
     }
   }
@@ -64,13 +71,15 @@ class _SettingsPageState extends State<SettingsPage> {
     User? currentUser = _auth.currentUser;
     if (currentUser != null) {
       try {
-        await _userSyncService.syncUserData(currentUser.uid, emailController.text.trim());  
-        await _userSyncService.storeUserData(
-          userId: currentUser.uid,
+        Map<String, dynamic> userInfoMap = {
+          'Name': nameController.text.trim(),
+          'Email': emailController.text.trim(),
+        };
+        await _databaseMethods.updateUserProfile(currentUser.uid, userInfoMap);
+        await _cacheService.updateUserData(
+          id: currentUser.uid,
           name: nameController.text.trim(),
           email: emailController.text.trim(),
-          wallet: walletController.text.trim(),
-          profile: profileController.text.trim(),
         );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -97,12 +106,15 @@ class _SettingsPageState extends State<SettingsPage> {
     User? currentUser = _auth.currentUser;
     if (currentUser != null) {
       try {
-        await _userSyncService.clearAllUserData();
+        await _cacheService.clearUserData(currentUser.uid);
         await _auth.signOut();
         if (mounted) {
-          Navigator.pushReplacement(
+          Navigator.pushAndRemoveUntil(
             context,
-            MaterialPageRoute(builder: (context) => const LogIn()),
+            MaterialPageRoute(
+              builder: (context) => Onboard(cacheService: _cacheService),
+            ),
+            (Route<dynamic> route) => false, // Clear navigation stack
           );
         }
       } catch (e) {
@@ -134,184 +146,114 @@ class _SettingsPageState extends State<SettingsPage> {
           color: Colors.white,
         ),
       ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Update Profile",
-                        style: AppWidget.semiBoldWhiteTextFeildStyle(),
-                      ),
-                      const SizedBox(height: 20),
-                      Material(
-                        elevation: 5.0,
-                        borderRadius: BorderRadius.circular(10),
-                        child: TextFormField(
-                          controller: nameController,
-                          style: const TextStyle(color: Colors.black),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Please enter your name';
-                            }
-                            return null;
-                          },
-                          decoration: InputDecoration(
-                            labelText: "Name",
-                            labelStyle: AppWidget.semiBoldTextFeildStyle(),
-                            prefixIcon: const Icon(Icons.person),
-                            filled: true,
-                            fillColor: Colors.white70,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide.none,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      Material(
-                        elevation: 5.0,
-                        borderRadius: BorderRadius.circular(10),
-                        child: TextFormField(
-                          controller: emailController,
-                          style: const TextStyle(color: Colors.black),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Please enter your email';
-                            }
-                            if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
-                              return 'Please enter a valid email';
-                            }
-                            return null;
-                          },
-                          decoration: InputDecoration(
-                            labelText: "Email",
-                            labelStyle: AppWidget.semiBoldTextFeildStyle(),
-                            prefixIcon: const Icon(Icons.email_outlined),
-                            filled: true,
-                            fillColor: Colors.white70,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide.none,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      Material(
-                        elevation: 5.0,
-                        borderRadius: BorderRadius.circular(10),
-                        child: TextFormField(
-                          controller: walletController,
-                          style: const TextStyle(color: Colors.black),
-                          keyboardType: TextInputType.number,
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Please enter wallet balance';
-                            }
-                            if (int.tryParse(value) == null || int.parse(value) < 0) {
-                              return 'Please enter a valid number';
-                            }
-                            return null;
-                          },
-                          decoration: InputDecoration(
-                            labelText: "Wallet Balance",
-                            labelStyle: AppWidget.semiBoldTextFeildStyle(),
-                            prefixIcon: const Icon(Icons.account_balance_wallet),
-                            filled: true,
-                            fillColor: Colors.white70,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide.none,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      Material(
-                        elevation: 5.0,
-                        borderRadius: BorderRadius.circular(10),
-                        child: TextFormField(
-                          controller: profileController,
-                          style: const TextStyle(color: Colors.black),
-                          decoration: InputDecoration(
-                            labelText: "Profile Image URL (Optional)",
-                            labelStyle: AppWidget.semiBoldTextFeildStyle(),
-                            prefixIcon: const Icon(Icons.image),
-                            filled: true,
-                            fillColor: Colors.white70,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide.none,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 40),
-                      GestureDetector(
-                        onTap: _updateProfile,
-                        child: Material(
-                          elevation: 5.0,
-                          borderRadius: BorderRadius.circular(20),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 15.0),
-                            width: double.infinity,
-                            decoration: BoxDecoration(
-                              color: Colors.grey,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: const Center(
-                              child: Text(
-                                "Update Profile",
-                                style: TextStyle(
-                                  color: Colors.black54,
-                                  fontSize: 18.0,
-                                  fontFamily: 'Poppins1',
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      GestureDetector(
-                        onTap: _signOut,
-                        child: Material(
-                          elevation: 5.0,
-                          borderRadius: BorderRadius.circular(20),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 15.0),
-                            width: double.infinity,
-                            decoration: BoxDecoration(
-                              color: Colors.redAccent,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: const Center(
-                              child: Text(
-                                "Sign Out",
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18.0,
-                                  fontFamily: 'Poppins1',
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+      body: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Update Profile",
+                style: AppWidget.semiBoldWhiteTextFeildStyle(),
+              ),
+              const SizedBox(height: 20),
+              TextFormField(
+                controller: nameController,
+                style: const TextStyle(color: Colors.white),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Please enter your name';
+                  }
+                  return null;
+                },
+                decoration: InputDecoration(
+                  labelText: "Name",
+                  labelStyle: const TextStyle(color: Colors.white70),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
               ),
-            ),
+              const SizedBox(height: 20),
+              TextFormField(
+                controller: emailController,
+                style: const TextStyle(color: Colors.white),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Please enter your email';
+                  }
+                  if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
+                    return 'Please enter a valid email';
+                  }
+                  return null;
+                },
+                decoration: InputDecoration(
+                  labelText: "Email",
+                  labelStyle: const TextStyle(color: Colors.white70),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 40),
+              GestureDetector(
+                onTap: _updateProfile,
+                child: Material(
+                  elevation: 5.0,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 15.0),
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.grey,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Center(
+                      child: Text(
+                        "Update Profile",
+                        style: TextStyle(
+                          color: Colors.black54,
+                          fontSize: 18.0,
+                          fontFamily: 'Poppins1',
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              GestureDetector(
+                onTap: _signOut,
+                child: Material(
+                  elevation: 5.0,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 15.0),
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.redAccent,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Center(
+                      child: Text(
+                        "Sign Out",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18.0,
+                          fontFamily: 'Poppins1',
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -319,8 +261,6 @@ class _SettingsPageState extends State<SettingsPage> {
   void dispose() {
     nameController.dispose();
     emailController.dispose();
-    walletController.dispose();
-    profileController.dispose();
     super.dispose();
   }
 }
