@@ -4,7 +4,7 @@ import 'package:foody_zidio/Content/bottom_nav.dart';
 import 'package:foody_zidio/pages/login.dart';
 import 'package:foody_zidio/services/database.dart';
 import 'package:foody_zidio/services/local_cache.dart';
-import 'package:foody_zidio/widget/widget_support.dart';
+import 'package:foody_zidio/services/widget_support.dart';
 import 'package:lottie/lottie.dart';
 
 class SignUp extends StatefulWidget {
@@ -18,7 +18,7 @@ class _SignUpState extends State<SignUp> {
   String email = "", password = "", name = "";
   bool isTapped = false;
   bool isLoading = false;
-  TextEditingController usernameController = TextEditingController();
+  TextEditingController userNameController = TextEditingController();
   TextEditingController userEmailController = TextEditingController();
   TextEditingController userPasswordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
@@ -26,62 +26,81 @@ class _SignUpState extends State<SignUp> {
   final LocalCacheService _cacheService = LocalCacheService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  Future<void> registration() async {
+  Future<void> signUp() async {
+    if (!_formKey.currentState!.validate()) return;
+
     setState(() {
       isLoading = true;
     });
+
     try {
       UserCredential credential = await _auth.createUserWithEmailAndPassword(
-          email: email, password: password);
+        email: email,
+        password: password,
+      );
       User? user = credential.user;
       if (user != null) {
-        String timestamp = DateTime.now().toIso8601String();
-        Map<String, dynamic> userInfoMap = {
-          "name": name,
-          "email": email,
-          "Wallet": "1000",
-          "profile": "",
-          "LastLoginTimestamp": timestamp,
+        Map<String, dynamic> userData = {
+          'Name': name,
+          'Email': email,
+          'Wallet': '0',
+          'Profile': '',
         };
-        await _databaseMethods.addUserDetail(userInfoMap, user.uid);
+        await _databaseMethods.addUserDetail(userData, user.uid);
         await _cacheService.saveUserData(
           id: user.uid,
           name: name,
           email: email,
-          wallet: "1000",
-          profile: "",
-          lastLoginTimestamp: timestamp,
+          wallet: '0',
+          profile: '',
         );
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          backgroundColor: Colors.greenAccent,
-          content: Text(
-            "Registered Successfully",
-            style: TextStyle(fontSize: 20.0),
-          ),
-        ));
-        Navigator.pushReplacement(
-            context, MaterialPageRoute(builder: (context) => const BottomNav()));
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              backgroundColor: Colors.greenAccent,
+              content: Text("Signed Up Successfully", style: TextStyle(fontSize: 20.0)),
+            ),
+          );
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const BottomNav()),
+            (Route<dynamic> route) => false, // Clear navigation stack
+          );
+        }
       }
     } on FirebaseAuthException catch (e) {
       String message = "An error occurred";
-      if (e.code == 'weak-password') {
-        message = "The password provided is too weak.";
-      } else if (e.code == 'email-already-in-use') {
-        message = "The account already exists for that email.";
+      if (e.code == 'email-already-in-use') {
+        message = "The email address is already in use.";
+      } else if (e.code == 'weak-password') {
+        message = "The password is too weak.";
+      } else {
+        message = e.message ?? message;
       }
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        backgroundColor: Colors.redAccent,
-        content: Text(
-          message,
-          style: const TextStyle(fontSize: 20.0),
-        ),
-      ));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.redAccent,
+            content: Text(message, style: const TextStyle(fontSize: 20.0)),
+          ),
+        );
+      }
     } catch (e) {
-      print('Error signing up: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.redAccent,
+            content: Text("Error signing up: $e", style: const TextStyle(fontSize: 20.0)),
+          ),
+        );
+      }
     } finally {
-      setState(() {
-        isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
     }
   }
 
@@ -109,8 +128,7 @@ class _SignUpState extends State<SignUp> {
                     ),
                   ),
                   Container(
-                    margin:
-                        EdgeInsets.only(top: MediaQuery.of(context).size.height / 3),
+                    margin: EdgeInsets.only(top: MediaQuery.of(context).size.height / 3),
                     height: MediaQuery.of(context).size.height,
                     width: MediaQuery.of(context).size.width,
                     decoration: const BoxDecoration(
@@ -120,11 +138,9 @@ class _SignUpState extends State<SignUp> {
                         topRight: Radius.circular(40),
                       ),
                     ),
-                    child: const Text(""),
                   ),
                   Container(
-                    margin:
-                        const EdgeInsets.only(top: 60.0, left: 20.0, right: 20.0),
+                    margin: const EdgeInsets.only(top: 60.0, left: 20.0, right: 20.0),
                     child: Column(
                       children: [
                         Center(
@@ -156,13 +172,14 @@ class _SignUpState extends State<SignUp> {
                                   ),
                                   const SizedBox(height: 30.0),
                                   TextFormField(
-                                    controller: usernameController,
+                                    controller: userNameController,
                                     validator: (value) {
                                       if (value == null || value.isEmpty) {
                                         return 'Please Enter Name';
                                       }
                                       return null;
                                     },
+                                    onChanged: (value) => name = value.trim(),
                                     decoration: InputDecoration(
                                       hintText: 'Name',
                                       hintStyle: AppWidget.semiBoldTextFeildStyle(),
@@ -176,8 +193,12 @@ class _SignUpState extends State<SignUp> {
                                       if (value == null || value.isEmpty) {
                                         return 'Please Enter Email';
                                       }
+                                      if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
+                                        return 'Please Enter a Valid Email';
+                                      }
                                       return null;
                                     },
+                                    onChanged: (value) => email = value.trim(),
                                     decoration: InputDecoration(
                                       hintText: 'Email',
                                       hintStyle: AppWidget.semiBoldTextFeildStyle(),
@@ -191,8 +212,12 @@ class _SignUpState extends State<SignUp> {
                                       if (value == null || value.isEmpty) {
                                         return 'Please Enter Password';
                                       }
+                                      if (value.length < 6) {
+                                        return 'Password must be at least 6 characters';
+                                      }
                                       return null;
                                     },
+                                    onChanged: (value) => password = value,
                                     obscureText: true,
                                     decoration: InputDecoration(
                                       hintText: 'Password',
@@ -202,16 +227,7 @@ class _SignUpState extends State<SignUp> {
                                   ),
                                   const SizedBox(height: 80.0),
                                   GestureDetector(
-                                    onTap: () {
-                                      if (_formKey.currentState!.validate()) {
-                                        setState(() {
-                                          email = userEmailController.text;
-                                          password = userPasswordController.text;
-                                          name = usernameController.text;
-                                        });
-                                        registration();
-                                      }
-                                    },
+                                    onTap: signUp,
                                     onTapDown: (_) {
                                       setState(() {
                                         isTapped = true;
@@ -232,15 +248,13 @@ class _SignUpState extends State<SignUp> {
                                       borderRadius: BorderRadius.circular(20),
                                       child: AnimatedContainer(
                                         duration: const Duration(milliseconds: 200),
-                                        padding:
-                                            const EdgeInsets.symmetric(vertical: 15.0),
+                                        padding: const EdgeInsets.symmetric(vertical: 15.0),
                                         width: double.infinity,
                                         decoration: BoxDecoration(
-                                          color:
-                                              isTapped ? Colors.grey[400] : Colors.grey,
+                                          color: isTapped ? Colors.grey[400] : Colors.grey,
                                           borderRadius: BorderRadius.circular(20),
                                         ),
-                                        child: Center(
+                                        child: const Center(
                                           child: Text(
                                             "SIGN UP",
                                             style: TextStyle(
@@ -258,12 +272,12 @@ class _SignUpState extends State<SignUp> {
                                   GestureDetector(
                                     onTap: () {
                                       Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                              builder: (context) => const LogIn()));
+                                        context,
+                                        MaterialPageRoute(builder: (context) => const LogIn()),
+                                      );
                                     },
                                     child: Text(
-                                      "Already have an account? Login",
+                                      "Already have an account? Log In",
                                       style: AppWidget.semiBoldTextFeildStyle(),
                                     ),
                                   ),
@@ -294,5 +308,13 @@ class _SignUpState extends State<SignUp> {
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    userNameController.dispose();
+    userEmailController.dispose();
+    userPasswordController.dispose();
+    super.dispose();
   }
 }

@@ -4,7 +4,7 @@ import 'package:foody_zidio/Content/bottom_nav.dart';
 import 'package:foody_zidio/pages/signup.dart';
 import 'package:foody_zidio/services/database.dart';
 import 'package:foody_zidio/services/local_cache.dart';
-import 'package:foody_zidio/widget/widget_support.dart';
+import 'package:foody_zidio/services/widget_support.dart';
 import 'package:lottie/lottie.dart';
 
 class LogIn extends StatefulWidget {
@@ -26,36 +26,51 @@ class _LogInState extends State<LogIn> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   Future<void> login() async {
+    if (!_formKey.currentState!.validate()) return;
+
     setState(() {
       isLoading = true;
     });
+
     try {
       UserCredential credential = await _auth.signInWithEmailAndPassword(
-          email: email, password: password);
+        email: email,
+        password: password,
+      );
       User? user = credential.user;
       if (user != null) {
-        String timestamp = DateTime.now().toIso8601String();
-        Map<String, dynamic>? userData =
-            await _databaseMethods.getUserDetails(user.uid);
-        if (userData != null) {
-          await _databaseMethods.updateUserLoginTimestamp(user.uid, timestamp);
-          await _cacheService.saveUserData(
-            id: user.uid,
-            name: userData['name'] ?? '',
-            email: userData['email'] ?? '',
-            wallet: userData['Wallet'] ?? '0',
-            profile: userData['profile'] ?? '',
-            lastLoginTimestamp: timestamp,
-          );
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            backgroundColor: Colors.greenAccent,
-            content: Text(
-              "Logged In Successfully",
-              style: TextStyle(fontSize: 20.0),
+        Map<String, dynamic>? userData = await _databaseMethods.getUserDetails(user.uid);
+
+        if (userData == null) {
+          userData = {
+            'Name': user.displayName ?? 'User',
+            'Email': user.email ?? email,
+            'Wallet': '0',
+            'Profile': '',
+          };
+          await _databaseMethods.addUserDetail(userData, user.uid);
+        }
+
+        await _cacheService.saveUserData(
+          id: user.uid,
+          name: userData['Name'] ?? '',
+          email: userData['Email'] ?? email,
+          wallet: userData['Wallet'] ?? '0',
+          profile: userData['Profile'] ?? '',
+        );
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              backgroundColor: Colors.greenAccent,
+              content: Text("Logged In Successfully", style: TextStyle(fontSize: 20.0)),
             ),
-          ));
-          Navigator.pushReplacement(
-              context, MaterialPageRoute(builder: (context) => const BottomNav()));
+          );
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const BottomNav()),
+            (Route<dynamic> route) => false, // Clear navigation stack
+          );
         }
       }
     } on FirebaseAuthException catch (e) {
@@ -64,20 +79,32 @@ class _LogInState extends State<LogIn> {
         message = "No user found for that email.";
       } else if (e.code == 'wrong-password') {
         message = "Wrong password provided.";
+      } else {
+        message = e.message ?? message;
       }
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        backgroundColor: Colors.redAccent,
-        content: Text(
-          message,
-          style: const TextStyle(fontSize: 20.0),
-        ),
-      ));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.redAccent,
+            content: Text(message, style: const TextStyle(fontSize: 20.0)),
+          ),
+        );
+      }
     } catch (e) {
-      print('Error logging in: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.redAccent,
+            content: Text("Error logging in: $e", style: const TextStyle(fontSize: 20.0)),
+          ),
+        );
+      }
     } finally {
-      setState(() {
-        isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
     }
   }
 
@@ -105,8 +132,7 @@ class _LogInState extends State<LogIn> {
                     ),
                   ),
                   Container(
-                    margin:
-                        EdgeInsets.only(top: MediaQuery.of(context).size.height / 3),
+                    margin: EdgeInsets.only(top: MediaQuery.of(context).size.height / 3),
                     height: MediaQuery.of(context).size.height,
                     width: MediaQuery.of(context).size.width,
                     decoration: const BoxDecoration(
@@ -116,11 +142,9 @@ class _LogInState extends State<LogIn> {
                         topRight: Radius.circular(40),
                       ),
                     ),
-                    child: const Text(""),
                   ),
                   Container(
-                    margin:
-                        const EdgeInsets.only(top: 60.0, left: 20.0, right: 20.0),
+                    margin: const EdgeInsets.only(top: 60.0, left: 20.0, right: 20.0),
                     child: Column(
                       children: [
                         Center(
@@ -157,8 +181,12 @@ class _LogInState extends State<LogIn> {
                                       if (value == null || value.isEmpty) {
                                         return 'Please Enter Email';
                                       }
+                                      if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
+                                        return 'Please Enter a Valid Email';
+                                      }
                                       return null;
                                     },
+                                    onChanged: (value) => email = value.trim(),
                                     decoration: InputDecoration(
                                       hintText: 'Email',
                                       hintStyle: AppWidget.semiBoldTextFeildStyle(),
@@ -172,8 +200,12 @@ class _LogInState extends State<LogIn> {
                                       if (value == null || value.isEmpty) {
                                         return 'Please Enter Password';
                                       }
+                                      if (value.length < 6) {
+                                        return 'Password must be at least 6 characters';
+                                      }
                                       return null;
                                     },
+                                    onChanged: (value) => password = value,
                                     obscureText: true,
                                     decoration: InputDecoration(
                                       hintText: 'Password',
@@ -183,15 +215,7 @@ class _LogInState extends State<LogIn> {
                                   ),
                                   const SizedBox(height: 80.0),
                                   GestureDetector(
-                                    onTap: () {
-                                      if (_formKey.currentState!.validate()) {
-                                        setState(() {
-                                          email = userEmailController.text;
-                                          password = userPasswordController.text;
-                                        });
-                                        login();
-                                      }
-                                    },
+                                    onTap: login,
                                     onTapDown: (_) {
                                       setState(() {
                                         isTapped = true;
@@ -212,15 +236,13 @@ class _LogInState extends State<LogIn> {
                                       borderRadius: BorderRadius.circular(20),
                                       child: AnimatedContainer(
                                         duration: const Duration(milliseconds: 200),
-                                        padding:
-                                            const EdgeInsets.symmetric(vertical: 15.0),
+                                        padding: const EdgeInsets.symmetric(vertical: 15.0),
                                         width: double.infinity,
                                         decoration: BoxDecoration(
-                                          color:
-                                              isTapped ? Colors.grey[400] : Colors.grey,
+                                          color: isTapped ? Colors.grey[400] : Colors.grey,
                                           borderRadius: BorderRadius.circular(20),
                                         ),
-                                        child: Center(
+                                        child: const Center(
                                           child: Text(
                                             "LOG IN",
                                             style: TextStyle(
@@ -238,9 +260,9 @@ class _LogInState extends State<LogIn> {
                                   GestureDetector(
                                     onTap: () {
                                       Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                              builder: (context) => const SignUp()));
+                                        context,
+                                        MaterialPageRoute(builder: (context) => const SignUp()),
+                                      );
                                     },
                                     child: Text(
                                       "Don't have an account? Sign Up",
@@ -274,5 +296,12 @@ class _LogInState extends State<LogIn> {
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    userEmailController.dispose();
+    userPasswordController.dispose();
+    super.dispose();
   }
 }
