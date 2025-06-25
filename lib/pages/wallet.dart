@@ -4,7 +4,7 @@ import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:foody_zidio/services/app_constraint.dart';
 import 'package:foody_zidio/services/database.dart';
 import 'package:foody_zidio/services/local_cache.dart';
-import 'package:foody_zidio/widget/widget_support.dart';
+import 'package:foody_zidio/services/widget_support.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
@@ -33,81 +33,105 @@ class _WalletState extends State<Wallet> {
   Future<void> _loadWalletBalance() async {
     String? uid = _auth.currentUser?.uid;
     if (uid != null) {
-      Map<String, String>? cachedData = await _cacheService.getUserData(uid);
-      if (cachedData != null && _cacheService.isCacheValid(cachedData)) {
-        setState(() {
-          walletBalance = cachedData['wallet'] ?? '0';
-        });
-      } else {
-        Map<String, dynamic>? userData = await _databaseMethods.getUserDetails(uid);
-        if (userData != null) {
+      try {
+        Map<String, String>? cachedData = await _cacheService.getUserData(uid);
+        if (cachedData != null && _cacheService.isCacheValid(cachedData)) {
           setState(() {
-            walletBalance = userData['Wallet'] ?? '0';
+            walletBalance = cachedData['wallet'] ?? '0';
           });
-          await _cacheService.updateUserData(id: uid, wallet: walletBalance);
+        } else {
+          Map<String, dynamic>? userData = await _databaseMethods.getUserDetails(uid);
+          if (userData != null) {
+            setState(() {
+              walletBalance = userData['Wallet'] ?? '0';
+            });
+            await _cacheService.updateUserData(id: uid, wallet: walletBalance);
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: Colors.redAccent,
+              content: Text("Error loading wallet: $e", style: const TextStyle(fontSize: 20.0,color: Color.fromARGB(70, 156, 149, 149)),
+              
+              ),
+            ),
+          );
         }
       }
     }
   }
 
   Future<void> _makePayment() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() {
-        _isLoading = true;
-      });
-      try {
-        String amount = amountController.text;
-        var response = await http.post(
-          Uri.parse('https://api.stripe.com/v1/payment_intents'),
-          headers: {
-            'Authorization': 'Bearer $secretKey',
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: {
-            'amount': '${int.parse(amount) * 100}',
-            'currency': 'INR',
-            'payment_method_types[]': 'card',
-          },
-        );
-        var json = jsonDecode(response.body);
-        if (json['error'] != null) {
-          throw Exception(json['error']['message']);
-        }
-        await Stripe.instance.initPaymentSheet(
-          paymentSheetParameters: SetupPaymentSheetParameters(
-            paymentIntentClientSecret: json['client_secret'],
-            merchantDisplayName: 'Foody Zidio',
-          ),
-        );
-        await Stripe.instance.presentPaymentSheet();
-        String? uid = _auth.currentUser?.uid;
-        if (uid != null) {
-          int currentBalance = int.parse(walletBalance);
-          int newBalance = currentBalance + int.parse(amount);
-          await _databaseMethods.updateUserWallet(uid, newBalance.toString());
-          await _cacheService.updateUserData(id: uid, wallet: newBalance.toString());
-          setState(() {
-            walletBalance = newBalance.toString();
-            amountController.clear();
-          });
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            backgroundColor: Colors.greenAccent,
-            content: Text(
-              "Wallet topped up successfully!",
-              style: TextStyle(fontSize: 20.0),
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      String amount = amountController.text.trim();
+      var response = await http.post(
+        Uri.parse('https://api.stripe.com/v1/payment_intents'),
+        headers: {
+          'Authorization': 'Bearer $secretKey',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: {
+          'amount': '${int.parse(amount) * 100}',
+          'currency': 'INR',
+          'payment_method_types[]': 'card',
+        },
+      );
+      var json = jsonDecode(response.body);
+      if (json['error'] != null) {
+        throw Exception(json['error']['message']);
+      }
+      await Stripe.instance.initPaymentSheet(
+        paymentSheetParameters: SetupPaymentSheetParameters(
+          paymentIntentClientSecret: json['client_secret'],
+          merchantDisplayName: 'Foody Zidio',
+        ),
+      );
+      await Stripe.instance.presentPaymentSheet();
+      String? uid = _auth.currentUser?.uid;
+      if (uid != null) {
+        int currentBalance = int.parse(walletBalance);
+        int newBalance = currentBalance + int.parse(amount);
+        await _databaseMethods.updateUserWallet(uid, newBalance.toString());
+        await _cacheService.updateUserData(id: uid, wallet: newBalance.toString());
+        setState(() {
+          walletBalance = newBalance.toString();
+          amountController.clear();
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              backgroundColor: Colors.greenAccent,
+              content: Text("Wallet topped up successfully!", style: TextStyle(fontSize: 20.0,color: Color.fromARGB(70, 156, 149, 149))),
             ),
-          ));
+          );
         }
-      } catch (e) {
-        print('Error processing payment: $e');
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          backgroundColor: Colors.redAccent,
-          content: Text(
-            "Payment failed: $e",
-            style: const TextStyle(fontSize: 20.0),
-          ),
-        ));
-      } finally {
+      }
+    } catch (e) {
+      print('Error processing payment: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+            backgroundColor: Colors.redAccent,
+            content: Text(
+              "Payment failed: $e",
+              style: const TextStyle(
+              fontSize: 20.0,
+              color: Color.fromARGB(70, 156, 149, 149),
+              ),
+            ),
+            ),
+        );
+      }
+    } finally {
+      if (mounted) {
         setState(() {
           _isLoading = false;
         });
@@ -155,11 +179,13 @@ class _WalletState extends State<Wallet> {
                     child: TextFormField(
                       controller: amountController,
                       keyboardType: TextInputType.number,
+                      style: const TextStyle(color: Colors.white), // Fix: Set text color to white
                       validator: (value) {
-                        if (value == null || value.isEmpty) {
+                        if (value == null || value.trim().isEmpty) {
                           return 'Please enter an amount';
                         }
-                        if (int.tryParse(value) == null || int.parse(value) <= 0) {
+                        int? amount = int.tryParse(value.trim());
+                        if (amount == null || amount <= 0) {
                           return 'Please enter a valid amount';
                         }
                         return null;
@@ -167,10 +193,28 @@ class _WalletState extends State<Wallet> {
                       decoration: InputDecoration(
                         hintText: "Enter amount",
                         hintStyle: AppWidget.semiBoldTextFeildStyle(),
+                        filled: true,
+                        fillColor: Colors.grey[800], // Background for input field
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: Colors.white70),
                         ),
-                        prefixIcon: const Icon(Icons.currency_rupee),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: Colors.white70),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: Colors.white),
+                        ),
+                        errorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: Colors.redAccent),
+                        ),
+                        prefixIcon: const Icon(
+                          Icons.currency_rupee,
+                          color: Colors.white70, // Fix: Set icon color
+                        ),
                       ),
                     ),
                   ),
@@ -213,5 +257,11 @@ class _WalletState extends State<Wallet> {
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    amountController.dispose();
+    super.dispose();
   }
 }
