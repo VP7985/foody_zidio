@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:foody_zidio/Content/onboard.dart';
 import 'package:foody_zidio/Content/setting_updt.dart';
 import 'package:foody_zidio/services/local_cache.dart';
-import 'package:foody_zidio/widget/widget_support.dart';
+import 'package:foody_zidio/services/widget_support.dart';
 
 class Profile extends StatefulWidget {
   const Profile({Key? key}) : super(key: key);
@@ -14,8 +14,9 @@ class Profile extends StatefulWidget {
 
 class _ProfileState extends State<Profile> {
   String name = "User", email = "", wallet = "0";
-  final LocalCacheService _cacheService = LocalCacheService();
+
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final LocalCacheService _cacheService = LocalCacheService();
 
   @override
   void initState() {
