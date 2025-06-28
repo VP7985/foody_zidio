@@ -1,14 +1,17 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:foody_zidio/Content/bottom_nav.dart';
 import 'package:foody_zidio/Content/onboard.dart';
+import 'package:foody_zidio/services/app_constraint.dart';
 import 'package:foody_zidio/services/local_cache.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
   final LocalCacheService cacheService = LocalCacheService();
+  Stripe.publishableKey = publishableKey;
   await cacheService.init();
   runApp(MyApp(cacheService: cacheService));
 }
