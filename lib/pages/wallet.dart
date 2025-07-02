@@ -53,9 +53,7 @@ class _WalletState extends State<Wallet> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               backgroundColor: Colors.redAccent,
-              content: Text("Error loading wallet: $e", style: const TextStyle(fontSize: 20.0,color: Color.fromARGB(70, 156, 149, 149)),
-              
-              ),
+              content: Text("Error loading wallet: $e", style: const TextStyle(fontSize: 20.0)),
             ),
           );
         }
@@ -109,7 +107,7 @@ class _WalletState extends State<Wallet> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               backgroundColor: Colors.greenAccent,
-              content: Text("Wallet topped up successfully!", style: TextStyle(fontSize: 20.0,color: Color.fromARGB(70, 156, 149, 149))),
+              content: Text("Wallet topped up successfully!", style: TextStyle(fontSize: 20.0)),
             ),
           );
         }
@@ -118,16 +116,10 @@ class _WalletState extends State<Wallet> {
       print('Error processing payment: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
+          SnackBar(
             backgroundColor: Colors.redAccent,
-            content: Text(
-              "Payment failed: $e",
-              style: const TextStyle(
-              fontSize: 20.0,
-              color: Color.fromARGB(70, 156, 149, 149),
-              ),
-            ),
-            ),
+            content: Text("Payment failed: $e", style: const TextStyle(fontSize: 20.0)),
+          ),
         );
       }
     } finally {
@@ -147,6 +139,10 @@ class _WalletState extends State<Wallet> {
         backgroundColor: Colors.black,
         title: Text("Wallet", style: AppWidget.semiBoldWhiteTextFeildStyle()),
         centerTitle: true,
+        leading: IconButton(
+          onPressed: () => Navigator.pop(context),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+        ),
       ),
       body: Stack(
         children: [
