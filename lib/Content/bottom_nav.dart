@@ -1,11 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:foody_zidio/Admin/add_food.dart';
 import 'package:foody_zidio/pages/ShoppingList.dart';
 import 'package:foody_zidio/pages/home.dart';
 import 'package:foody_zidio/pages/profile.dart';
 import 'package:foody_zidio/pages/wallet.dart';
-import 'package:foody_zidio/services/local_cache.dart';
 
 class BottomNav extends StatefulWidget {
   const BottomNav({Key? key}) : super(key: key);
@@ -17,23 +15,12 @@ class BottomNav extends StatefulWidget {
 class _BottomNavState extends State<BottomNav> {
   int _selectedIndex = 0;
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final LocalCacheService _cacheService = LocalCacheService();
-  bool _isAdmin = false;
   DateTime? _lastBackPressTime;
 
   @override
   void initState() {
     super.initState();
-    _checkAdminStatus();
   }
-
-  Future<void> _checkAdminStatus() async {
-    String? adminId = await _cacheService.getUserId('admin');
-    setState(() {
-      _isAdmin = adminId != null;
-    });
-  }
-
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
@@ -72,9 +59,6 @@ class _BottomNavState extends State<BottomNav> {
           : const Center(child: Text("Please log in")),
       const Wallet(),
       const Profile(),
-      _isAdmin
-          ? const AddFood()
-          : const Center(child: Text("Admin access required to add food items")),
     ];
 
     return WillPopScope(
@@ -104,10 +88,6 @@ class _BottomNavState extends State<BottomNav> {
             BottomNavigationBarItem(
               icon: Icon(Icons.person),
               label: 'Profile',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.add_circle),
-              label: 'Add Food',
             ),
           ],
         ),
