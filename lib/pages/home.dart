@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:foody_zidio/pages/ShoppingList.dart';
 import 'package:foody_zidio/pages/details.dart';
-import 'package:foody_zidio/pages/my_order.dart';
 import 'package:foody_zidio/services/user_async_activity.dart';
 import 'package:foody_zidio/services/widget_support.dart';
 import 'package:liquid_pull_to_refresh/liquid_pull_to_refresh.dart';
@@ -95,9 +95,13 @@ class _HomeState extends State<Home> {
         actions: [
           GestureDetector(
             onTap: () {
-              Navigator.pushReplacement(
+              Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => Ordered()),
+                MaterialPageRoute(
+                  builder: (context) => ShoppingList(
+                    userId: FirebaseAuth.instance.currentUser!.uid,
+                  ),
+                ),
               );
             },
             child: Container(
